@@ -1,0 +1,97 @@
+--Ime, prezime, spol (ispisati ‘MUŠKI’, ‘ŽENSKI’, ‘NEPOZNATO’, ‘OSTALO’), ime države i prosječna plaća u toj državi za svakog trenera.
+SELECT p.Name, p.Surname, g.Gender, c.Name, c.AvgSalary FROM Trainers t
+	JOIN Persons p ON t.Id = p.Id
+	JOIN Genders g ON g.Id = p.GenderId
+	JOIN Countries c ON c.Id = p.CountryId;
+
+--Naziv i termin održavanja svake sportske igre zajedno s imenima glavnih trenera (u formatu Prezime, I.; npr. Horvat, M.; Petrović, T.).
+SELECT a.Name, startDate as Start_of_activity, endDate as End_of_activity, p.Surname, LEFT(p.Name, 1) as Trainer_name FROM Activities a
+	JOIN ActivitiesTrainers Atr ON a.Id = Atr.ActivityId
+	JOIN Trainers t ON t.id = Atr.TrainerId
+	JOIN Persons p ON t.Id = p.Id;
+	
+--Top 3 fitness centra s najvećim brojem aktivnosti u rasporedu
+SELECT fc.name, COUNT(fc.Id) FROM FitnessCenters fc
+	JOIN Activities A ON A.FitnessCentersId = fc.Id
+	GROUP BY fc.Id
+	ORDER BY COUNT(fc.Id) DESC
+	LIMIT 3;
+	
+--Po svakom terneru koliko trenutno aktivnosti vodi; ako nema aktivnosti, ispiši “DOSTUPAN”, ako ima do 3 ispiši “AKTIVAN”, a ako je na više ispiši “POTPUNO ZAUZET”.
+SELECT p.name, COUNT(DISTINCT a.id) + COUNT(DISTINCT atr.ActivityId) AS Activities,
+CASE
+	WHEN COUNT(DISTINCT a.id) + COUNT(DISTINCT atr.ActivityId) >3 THEN 'FULLY BUSY'
+    WHEN COUNT(DISTINCT a.id) + COUNT(DISTINCT atr.ActivityId) > 0 THEN 'ACTIVE'
+    ELSE 'AVAILABLE'
+	END AS status
+FROM Trainers t
+JOIN Activities a ON t.Id = a.MainTrainerId
+JOIN ActivitiesTrainers atr ON t.Id = atr.TrainerId
+JOIN Persons p ON t.Id = p.Id
+GROUP BY t.Id, p.name;
+	
+--Imena svih članova koji trenutno sudjeluju na nekoj aktivnosti.
+SELECT DISTINCT u.Id, p.Name FROM ActivitiesUsers au
+	JOIN Users u ON u.Id = au.UserId
+	JOIN Persons p ON u.Id = p.Id;
+
+--Sve trenere koji su vodili barem jednu aktivnost između 2019. i 2022.
+SELECT DISTINCT p.Name, p.Surname FROM Trainers t
+JOIN Activities act ON act.MainTrainerId = t.Id
+JOIN ActivitiesTrainers atr ON atr.TrainerId = t.Id
+JOIN Persons p ON p.Id = t.Id
+WHERE (act.startDate BETWEEN '2020-01-01' AND '2022-12-31' 
+   OR act.endDate BETWEEN '2020-01-01' AND '2022-12-31');
+   
+--Prosječan broj sudjelovanja po tipu aktivnosti po svakoj državi.
+SELECT c.name, aty.name, COUNT(au.UserId) / COUNT(DISTINCT aty.Id) as average FROM Activities a
+	JOIN ActivityTypes aty ON aty.Id = a.activityTypeId
+	JOIN ActivitiesUsers au ON au.ActivityId = a.Id
+	JOIN Users u ON u.id = au.UserId
+	JOIN Persons p ON u.Id = p.Id
+	JOIN Countries c ON c.Id = p.CountryId
+	GROUP BY aty.name, c.name;
+
+--Top 10 država s najvećim brojem sudjelovanja u injury rehabilitation tipu aktivnosti
+SELECT c.name , COUNT(u.Id) AS allUsersInInjuryRehabilitation FROM ActivitiesUsers au
+	JOIN Activities a ON a.Id = au.ActivityId
+	JOIN ActivityTypes aty ON aty.Id = a.ActivityTypeId
+	JOIN Users u ON u.id = au.UserId
+	JOIN Persons p ON u.Id = p.Id
+	JOIN Countries c ON c.Id = p.CountryId
+	WHERE aty.Name = 'injury rehabilitation'
+	GROUP BY c.Id
+	ORDER BY COUNT(u.Id) DESC
+	LIMIT 10;
+	
+--Ako aktivnost nije popunjena, ispiši uz nju “IMA MJESTA”, a ako je popunjena ispiši “POPUNJENO”
+SELECT a.Name,
+    CASE
+        WHEN COUNT(au.UserId) >= a.Capacity THEN 'FULL'
+        ELSE 'NOT FULL'
+    END AS status
+FROM Activities a
+	JOIN ActivitiesUsers au ON au.ActivityId = a.Id
+	GROUP BY a.Id;
+	
+--10 najplaćenijih trenera, ako po svakoj aktivnosti dobije prihod kao brojSudionika * cijenaPoTerminu
+
+--10 najplacenijih glavnih trenera
+SELECT p.name, p.surname, COUNT(DISTINCT au.UserId) * a.price AS Sallary FROM Trainers t
+JOIN Activities a ON t.Id = a.MainTrainerId
+JOIN ActivitiesUsers au ON au.ActivityId = a.Id
+JOIN Persons p ON t.Id = p.Id
+GROUP BY t.Id, p.name, p.surname, a.Id
+ORDER BY Sallary DESC
+LIMIT 10;
+
+--10 najplacenijih pomocnih trenera
+SELECT p.name, p.surname, COUNT(DISTINCT au.UserId) * a.price AS Sallary FROM Trainers t
+JOIN ActivitiesTrainers atr ON t.Id = atr.TrainerId
+JOIN Activities a ON t.Id = a.MainTrainerId
+JOIN ActivitiesUsers au ON au.ActivityId = a.Id
+JOIN Persons p ON t.Id = p.Id
+GROUP BY t.Id, p.name, p.surname, a.Id
+ORDER BY Sallary DESC
+LIMIT 10;
+

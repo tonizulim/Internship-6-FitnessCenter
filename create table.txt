@@ -1,0 +1,97 @@
+CREATE TABLE Countries(
+	Id SERIAL PRIMARY KEY,
+	Name VARCHAR(50) NOT NULL,
+	Population INT NOT NULL,
+	AvgSalary FLOAT NOT NULL
+);
+
+CREATE TABLE FitenssCenters(
+	Id SERIAL PRIMARY KEY,
+	Name VARCHAR(100) NOT NULL,
+	OpeningTime TIME NOT NULL,
+	CloseTime TIME NOT NULL
+);
+
+CREATE TABLE Genders(
+	Id SERIAL PRIMARY KEY,
+	Gender VARCHAR(50) NOT NULL
+);
+
+CREATE TABLE Persons(
+	Id SERIAL PRIMARY KEY,
+	Name VARCHAR(50) NOT NULL,
+	Surname VARCHAR(50) NOT NULL,
+	GenderId INT REFERENCES Genders(Id),
+	DateOfBirth DATE NOT NULL,
+	CountryId INT REFERENCES Countries(Id)
+);
+
+CREATE TABLE Users(
+	Id INT PRIMARY KEY,
+	FOREIGN KEY (id) REFERENCES Persons(Id)
+);
+
+CREATE TABLE Trainers(
+	Id INT PRIMARY KEY,
+	FOREIGN KEY (id) REFERENCES Persons(Id),
+	FitenssCentersId INT REFERENCES FitenssCenters(Id)
+);
+
+CREATE TABLE ActivityTypes(
+	Id SERIAL PRIMARY KEY,
+	Name VARCHAR(50) NOT NULL
+);
+
+CREATE TABLE Activities(
+	Id SERIAL PRIMARY KEY,
+	Name VARCHAR(50) NOT NULL,
+	DurationInHours FLOAT NOT NULL,
+    StartDate DATE NOT NULL,
+    EndDate DATE NOT NULL,
+    Capacity INT NOT NULL,
+    Price FLOAT NOT NULL,
+    FitenssCentersId INT REFERENCES FitenssCenters(id),
+    MainTrainerId INT REFERENCES Trainers(id),
+	ActivityTypeId INT REFERENCES ActivityTypes(Id)
+);
+
+ALTER TABLE Activities
+ADD CONSTRAINT Unique_MainTrainerId UNIQUE (MainTrainerId);
+
+CREATE TABLE ActivitiesUsers(
+	UserId INT REFERENCES Users(Id),
+	ActivityId INT REFERENCES Activities(Id),
+	PRIMARY KEY(UserId, ActivityId)
+);
+
+CREATE TABLE ActivitiesTrainers(
+	TrainerId INT REFERENCES Trainers(Id),
+	ActivityId INT REFERENCES Activities(Id),
+	PRIMARY KEY(TrainerId, ActivityId)
+);
+
+
+CREATE OR REPLACE FUNCTION enforce_capacity()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF (
+        SELECT COUNT(*) FROM ActivitiesUsers
+        WHERE ActivityId = NEW.ActivityId
+    ) >= (
+        SELECT Capacity FROM Activities
+        WHERE Id = NEW.ActivityId
+    ) THEN
+        RAISE EXCEPTION 'Cannot add more users: activity capacity reached.';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER enforce_capacity_trigger
+BEFORE INSERT ON ActivitiesUsers
+FOR EACH ROW
+EXECUTE FUNCTION enforce_capacity();
+
+
+
+
